@@ -10,8 +10,8 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 source("../../bin/figure_utils.R")
 
 # input/output directories
-data_dir <- "/Users/henrysanford/Downloads/02_wp_analysis/20240821_6rep_2MC_two_replicate_var_filter/"
-rna_dir <- '/Users/henrysanford/Dropbox @RU Dropbox/Vinogradova Laboratory/Exhaustion manuscript/01_RNA-sequencing/13524/'
+data_dir <- "../../data/whole_proteome/"
+rna_dir <- '../../data/rna/'
 plot_dir <- paste0(data_dir, "04_results/")
 ```
 
@@ -29,97 +29,11 @@ replot_pca(
 
 
 ```{r, fig.height =2, fig.width=2}
-#TODO pull % explained from data
-
-plot_loadings <- function(loadings_df, ggplot_obj, arrow_scaling, num_loadings = 5){
-  loadings_df %>% arrange(PC1) %>% tail(num_loadings) %>% pull(variable)-> top_pc1
-  loadings_df %>% arrange(PC1) %>% head(num_loadings) %>% pull(variable)-> bottom_pc1
-  loadings_df %>% arrange(PC2) %>% tail(num_loadings) %>% pull(variable)-> top_pc2
-  loadings_df %>% arrange(PC2) %>% head(num_loadings) %>% pull(variable)-> bottom_pc2
-  
-  loadings_df %>% filter(variable %in% c(top_pc1, bottom_pc1, bottom_pc2, top_pc2)) -> filtered_loadings
-  
-  loadings <- ggplot_obj + geom_segment(data= filtered_loadings, 
-                      aes(x = 0, y = 0, 
-                          xend = PC1 * arrow_scaling, 
-                          yend = PC2 * arrow_scaling), 
-                      inherit.aes = FALSE,
-                    arrow = arrow(length = unit(0.1, "cm")),
-                    size = LINE_WIDTH,
-                    color="grey90") + 
-    geom_text(data= filtered_loadings,
-                    mapping = aes(label=variable,x=PC1*arrow_scaling, y=PC2*arrow_scaling), 
-                    inherit.aes = FALSE, 
-                    segment.size = LINE_WIDTH,
-                    min.segment.length = unit(0,"mm"),
-                    size=1.763, 
-                    color="black",
-                    #bg.color = "white",
-                    segment.color = "grey") 
-  return(loadings)
-}
-
-pca_plot <- function(df, loadings_df, x_column, y_column, x_lab, y_lab, fn, arrow_scaling = 100){
-  df %>%
-    ggplot(aes_string(
-      x = x_column,
-      y = y_column,
-      fill = "condition"
-    )) + 
-    geom_point(size = POINT_SIZE,
-             stroke=POINT_STROKE,
-             shape=21,
-             alpha=0.9,
-             col="black", 
-             show.legend = FALSE) + my_theme() +
-    labs(x = x_lab, y = y_lab) + 
-    scale_fill_manual(values=cols, name="") +
-    theme(aspect.ratio=1)-> plt
-  print(plt)
-  save_plot(fn, height=2, width = 2)
-  
-  plot_loadings(loadings_df, plt, arrow_scaling) -> plot_with_loadings
-  print(plot_with_loadings)
-  save_plot(paste0(fn, "_with_loadings"), height=2, width = 2)
-  ggplot() + my_theme() +
-    labs(x = x_lab, y = y_lab) + 
-    theme(aspect.ratio=1) -> base_plot
-  plot_loadings(loadings_df, base_plot, 1, 10) -> loadings_only
-  
-  print(loadings_only)
-  save_plot(paste0(fn, "_loadings_only"), height=2, width = 2)
-}
-
-read.csv(paste0(pca_dir, "pca_results.csv")) -> df
-
-read.csv(paste0(pca_dir, "loadings_df.csv")) -> loadings_df
-
-pca_plot(
-  df, 
-  loadings_df,
-  "principal.component.1",
-  "principal.component.2", 
-  "PC1 (42.42%)",
-  "PC2 (17.76%)",
-  paste0(pca_dir, "pca"),
-  arrow_scaling = 260
-)
-
-
-# TODO move to RNA visualization
-rna_pca_dir <- paste0(rna_dir, 'PCA_5000_genes/')
-paste0(rna_pca_dir, 'principal_components.csv') %>%
-  read_csv(show_col_types = FALSE) -> df
-paste0(rna_pca_dir, 'loadings_df.csv') %>%
-  read_csv(show_col_types = FALSE) -> loadings_df
-pca_plot(
-  df,
-  loadings_df,
+replot_pca(
+  paste0(rna_dir, "PCA_5000_genes"),
   "PC1",
   "PC2",
-  "PC1 (50.97%)",
-  "PC2 (18.74%)",
-  paste0(rna_pca_dir, "pca")
+  260
 )
 ```
 

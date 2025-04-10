@@ -3,9 +3,9 @@
 # load figure settings
 source("../../bin/figure_utils.R")
 
-analysis_dir <- "/Users/henrysanford/dev/test_data/test_metabolomics_1/03_Metabolomics Data/20231108_LFSP1558 Report/cross_replicate_analysis"
+analysis_dir <- "../../data/metabolomics/cross_replicate_analysis"
 results_dir <-paste0(analysis_dir, "/04_results/cell_volume_normalized/")
-'/Users/henrysanford/dev/test_data/test_metabolomics_1/03_Metabolomics Data/Reference lists/20240924_list of polar metabolites for the targeted assay_annotations_LSP_v3.csv' %>% read_csv(show_col_types = FALSE) -> annotations_df
+'../../data/metabolomics/20240924_list of polar metabolites for the targeted assay_annotations_LSP_v3.csv' %>% read_csv(show_col_types = FALSE) -> annotations_df
 ```
 
 
@@ -551,7 +551,7 @@ for (display_condition in conditions) {
 
 ```{r, fig.height=4, fig.width=2}
 
-analysis_dir <- "/Users/henrysanford/dev/test_data/test_metabolomics_1/03_Metabolomics Data/20240207_Whole cell Lipidomics/cross_replicate_analysis"
+analysis_dir <- "../data/lipidomics/cross_replicate_analysis"
 results_dir <-paste0(analysis_dir, "/04_results/cell_volume_normalized/")
 
 pca_dir <- paste0(results_dir, "pca/")
@@ -667,7 +667,7 @@ save_plot(
 # Isotope tracing
 
 ```{r, fig.width=2.05, fig.height=0.9}
-results_dir <- '/Users/henrysanford/dev/test_data/test_metabolomics_1/03_Metabolomics Data/13C Human T-cell isotope tracing 041621'
+results_dir <- '../../data/isotope_tracing/13C Human T-cell isotope tracing 041621'
 
 isotope_files <- c("/13C-glc_cleaned_isotope_trace_data.csv" = "13C-Glc", 
                    "/13C-gln_cleaned_isotope_trace_data.csv" = "13C-Gln")

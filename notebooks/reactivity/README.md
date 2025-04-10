@@ -26,17 +26,6 @@ Each experiment was processed individually using following filters:
 
 - Peptides were required to be quantified in at least two unique biological replicates for analysis
 
-## Combined dataset filtering
-
-25,625 peptides after sum and CV filtering and cysteine aggregation
-
-- 7,443 peptides detected in one replicate were removed
-
-- 870 peptides failing two replicate variability filter (peptide not changing (FC < 1.5) in one replicate and the ratio of the two replicates was greater than two) were removed
-
-- contaminant peptides were removed
-
-= 17,418 peptides for reactivity analysis
 
 ## Reactivity change analysis
 
@@ -53,11 +42,3 @@ Three filters were applied to detect reactivity changes:
 requirement that the maximum peptide R ratio differed more than 2-fold from the minimum peptide R ratio. 
 
 - Proteins with one peptide were not considered.
-
-## Subcellular localization annotation
-
-Subcellular localization annotations were retrieved from UniProtKB through the Proteins API on Nov 20, 2024. 
-
-UniProt Annotation was used if available, otherwise GO Annotation was used.
-
-Proteins were assigned to compartments using the order 'Mitochondrion', 'Nucleus', 'Peroxisome', 'Lysosome', 'Endoplasmic reticulum', 'Membrane', 'Cytoplasm', 'Other'.

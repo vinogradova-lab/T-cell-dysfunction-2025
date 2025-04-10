@@ -13,11 +13,11 @@ output: html_document
 # load figure settings
 source("../../bin/figure_utils.R")
 
-results_dir <- "/Users/henrysanford/dev/reactivity/06_results/"
+results_dir <- "../../data/reactivity/results"
 
 protein_list_dir <- "/Users/henrysanford/Dropbox @RU Dropbox/Vinogradova Laboratory/Exhaustion manuscript/02_Mass-spectrometry data/Reference lists/"
 
-add_back_dir <- "/Users/henrysanford/Dropbox @RU Dropbox/Vinogradova Laboratory/Exhaustion manuscript/02_Mass-spectrometry data/10_metabolites/02_rc_analysis/20241107_tex_metab_2reps_2MC/06_results/"
+add_back_dir <- "../data/reactivity/atp_add_back"
 
 ```
 
@@ -767,9 +767,8 @@ save_plot(
 )
 
 ```
+
 ## Reactivity change stacked barplots
-
-
 
 ```{r, fig.width=2.7, fig.height=2}
 
@@ -1139,10 +1138,10 @@ expression_and_reactivity_boxplot <- function(condition_to_display,
 ```
 
 ```{r, fig.width=8, fig.height=2}
-'/Users/henrysanford/Downloads/02_wp_analysis/20240821_6rep_2MC_two_replicate_var_filter/03_combined_files/20240821_6rep_2MC_two_replicate_var_filter/07_combfiles_percctrl_passes_two_replicate_variability_filter.csv' %>%
+'../../data/whole_proteome/combined_files/07_combfiles_percctrl_passes_two_replicate_variability_filter.csv' %>%
   read_csv(show_col_types = FALSE) -> wp_table
 
-'/Users/henrysanford/dev/reactivity/04_combined_files/20240821_5_rep_variability_filter/07_combfiles_cysaggr_percctrl_passes_two_replicate_variability_filter.csv' %>%
+'../../data/reactivity/combined_files/20240821_5_rep_variability_filter/07_combfiles_cysaggr_percctrl_passes_two_replicate_variability_filter.csv' %>%
   read_csv(show_col_types = FALSE) -> rc_table
 
 target_proteins <- c(
