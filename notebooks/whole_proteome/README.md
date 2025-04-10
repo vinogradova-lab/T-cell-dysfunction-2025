@@ -42,7 +42,7 @@ PCA was performed with scikit-learn version 1.4.2 for Python version 3.1.1.
 
 ## Volcano plots
 
-p-values were calculated with T-test for the means of two independent samples and volcano plots show uncorrected −log10 p-values on y axis and fold change of KO/AB on x axis. Significant peptides (< 0.05, -log10(0.05) = 1.3) which show a > 1.5 fold change are highlighted.
+p-values were calculated with T-test for the means of two independent samples and volcano plots show uncorrected −log10 p-values on y axis and fold change on x axis. Significant peptides (< 0.05, -log10(0.05) = 1.3) which show a > 1.5 fold change are highlighted.
 
 **Redox-related**
 
