@@ -30,10 +30,11 @@ replot_pca(
 
 ```{r, fig.height =2, fig.width=2}
 replot_pca(
-  paste0(rna_dir, "PCA_5000_genes"),
+  paste0(rna_dir, "PCA_5000_genes/"),
   "PC1",
   "PC2",
-  260
+  260,
+  add_grid = TRUE
 )
 ```
 
@@ -922,84 +923,6 @@ create_wp_rna_corr_plot("D4C_D2", c("CDKN2A"), x_lim = 4, y_lim = 6.9)
 create_wp_rna_corr_plot("D4A_D2", c(), x_lim = 4, y_lim = 6.9)
 ```
 
-## ISR related heatmap
-
-```{r}
-"protein_lists/chandel_2023_mouse_ISR.csv" %>% 
-  read_csv() %>%
-  pull(ID) %>% 
-  lapply(toupper) %>%
-  unlist() -> exhaustion_markers
-paste0(data_dir, 
-       "03_combined_files/20240821_6rep_2MC_two_replicate_var_filter/10_combcond_percctrl_wp_two_passes_two_replicate_variability_filter.csv") %>% 
-  read_csv(show_col_types = FALSE) -> wp_data
-
-wp_data$protein <- make.unique(wp_data$protein)
-
-wp_data %>%
-  select(-c("description","uniprot","...1")) %>%
-  column_to_rownames("protein") -> wp_data
-wp_data %>%
-  apply(1,scale) %>% 
-  t() %>% 
-  as.data.frame()  %>% 
-  as.matrix() -> wp_scaled_data
-colnames(wp_scaled_data) <- wp_data %>% colnames()
-
-fil_exhaustion_markers <- exhaustion_markers[exhaustion_markers %in% rownames(wp_scaled_data)]
-ht_data <- wp_scaled_data[fil_exhaustion_markers,]
-
-wp_scaled_data <- ht_data
-  n_markers <- nrow(wp_scaled_data)
-    wp_scaled_data %>% 
-    colnames() -> cls 
-
-  
-  wp_scaled_data <- wp_scaled_data[,
-                                   order(factor(colnames(wp_scaled_data), levels = names(cols)))
-                                   ]
-  ba <- HeatmapAnnotation(conditions=colnames(wp_scaled_data), 
-                          col=list(conditions=cols),
-                          show_legend = FALSE,
-                          show_annotation_name = FALSE)
-  
-
-  panel_fun = function(index, nm) {
-    grid.rect()
-    grid.text(paste0(length(index), " rows"), 0.5, 0.5)
-  }
-wp_scaled_data %>%  as.data.frame() %>% rownames_to_column(var = "protein") %>% write_csv(paste0(plot_dir, "heatmap/wp_exhaustion_markers_median_combined_scaled_data.csv"))
-  
-  wp_scaled_data %>% 
-    Heatmap(name="zscore", 
-            cluster_rows = TRUE, 
-            bottom_annotation = ba,
-            cluster_columns = FALSE, 
-            show_row_names = TRUE,
-            row_names_side = "left",
-            show_column_names = FALSE,
-            rect_gp = gpar(col = "white", lwd = LINE_WIDTH),
-            show_column_dend = FALSE,
-            show_row_dend = FALSE,
-            row_names_gp = gpar(fontsize =6 ),
-            row_title_gp = gpar(fontsize =6 ),
-            row_title_side = "right",
-            row_gap = unit(2, "mm"),
-            show_heatmap_legend = TRUE,
-            heatmap_legend_param = list(
-              legend_height = unit(1, "cm"), 
-              grid_width = unit(0.2, "cm"), 
-              title_gp =gpar(fontsize =6 ), 
-              labels_gp = gpar(fontsize =6 ) )
-            ) -> ht
-
-pdf(file=paste0(plot_dir, "heatmap/isr_median_combined_scaled_data.pdf"),width=2,height=2.3)
-print(ht)
-dev.off()
-print(ht)
-
-
-```
 
 ## Protein expression bar graphs
 
@@ -1009,7 +932,7 @@ expression_bar_graph <- function(
     conditions,
     width,
     height){
-  paste0(data_dir, "03_combined_files/20240821_6rep_2MC_two_replicate_var_filter/07_combfiles_percctrl_passes_two_replicate_variability_filter.csv") %>%
+  paste0(data_dir, "combined_files/20240821_6rep_2MC_two_replicate_var_filter/07_combfiles_percctrl_passes_two_replicate_variability_filter.csv") %>%
     read_csv(show_col_types = FALSE) %>% 
     filter(protein %in% proteins) %>% 
     column_to_rownames("protein") -> df
@@ -1238,7 +1161,7 @@ subcell_palette <- c(
   "Membrane" = "#8ED4BF"
 )
 
-'/Users/henrysanford/Dropbox @RU Dropbox/Vinogradova Laboratory/Exhaustion manuscript/07_WB data/Figure 2_Subcellular fractionation/UPR transcription factors subcellular fractionation (quantification)_HS_formatting.csv' %>%
+'../../data/whole_proteome/subcell/UPR transcription factors subcellular fractionation (quantification)_HS_formatting.csv' %>%
   read_csv() %>%
   pivot_longer(cols = starts_with("D"),
                names_to = "variable",

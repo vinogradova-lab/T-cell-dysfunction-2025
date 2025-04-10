@@ -141,7 +141,7 @@ print(ht)
 
 
 ```{r, fig.height=5, fig.width=2}
-isr_genes <- '../../data/rna/Chandel_2023_GO_combined_ISR_genes_mapped.csv' %>% 
+isr_genes <- '../../data/rna/Chandel_2023_ISR_genes_mapped.csv' %>% 
   read_csv(show_col_types = FALSE) %>% 
   pull("Manually curated Human gene name") %>% 
   unlist() %>% unique()
@@ -163,7 +163,7 @@ ht<- get_ht(
   row_k_means = 0, row_annotation = row_annotation, show_row_names = FALSE
 )
 
-pdf(paste0(input_dir, "heatmaps/exhaustion markers/isr_genes.pdf"),width=2,height=5)
+pdf(paste0(input_dir, "heatmaps/exhaustion markers/isr_genes.pdf"),width=2.2,height=5.4)
 print(ht)
 dev.off()
 print(ht)
