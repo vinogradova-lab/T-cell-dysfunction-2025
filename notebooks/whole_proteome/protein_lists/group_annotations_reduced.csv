@@ -1,0 +1,7 @@
+"group","column_name","file_name","source"
+"Mitochondrial Genes","mitochondrial","protein_lists/mitochondrial_gene_list_go.csv","Gene Ontology"
+"Peroxisomal Genes","peroxisome","protein_lists/peroxisomal_genes.csv","Gene Ontology"
+"Redox Related Genes","redox_related","protein_lists/redox_related_genes.csv","Gene Ontology"
+"Cell Cycle","cell_cycle","protein_lists/cell_cycle_proteins.csv","Gene Ontology"
+"Nucleotide Metabolism","nucleotide_metabolism","protein_lists/nucleotide_metabolism_expanded.csv","Gene Ontology"
+"Endoplasmic reticulum","endoplasmic_reticulum","protein_lists/endoplasmic_reticulum_genes.csv","Gene Ontology"

@@ -1,0 +1,1106 @@
+# RNA data visualization
+
+## Setup
+
+```{r, setup}
+# set working directory to script location
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+# load figure settings
+source("../08_figure_creation/figure_parameters.R")
+
+# input directory
+input_dir <- '/Users/henrysanford/Dropbox @RU Dropbox/Vinogradova Laboratory/Exhaustion manuscript/01_RNA-sequencing/13524/'
+norm_counts <- paste0(input_dir, "normalized_counts.txt")
+
+wp_replicate_fn <- "/Users/henrysanford/Dropbox @RU Dropbox/Vinogradova Laboratory/Exhaustion manuscript/02_Mass-spectrometry data/01_whole_proteome/02_wp_analysis/20240821_6rep_2MC_two_replicate_var_filter/03_combined_files/20240821_6rep_2MC_two_replicate_var_filter/07_combfiles_percctrl_passes_two_replicate_variability_filter.csv"
+
+condition_from_rna_sample_name <- function(sample_name){
+  # helper method for pulling condition from sample name
+  return(case_when(grepl("D2",sample_name) ~ "D2",
+          grepl("D4.Ac",sample_name) ~ "D4A",
+          grepl("D8.Ac",sample_name) ~ "D8A",
+          grepl("D4.Chr",sample_name) ~ "D4C",
+          grepl("D8.Chr",sample_name) ~ "D8C",
+          )
+  )
+}
+
+
+```
+
+## Read and scale normalized counts
+
+```{r}
+
+# read deseq2 normalized counts
+
+df <- read_delim(
+  file = norm_counts,
+  delim = "\t",
+  col_names = c("geneSymbol", str_split(readLines(norm_counts, n = 1), "\t")[[1]]),
+  skip = 1,
+  show_col_types = FALSE
+) %>%
+  mutate(geneSymbol = make.unique(geneSymbol)) %>%
+  column_to_rownames("geneSymbol")
+
+# order columns according to condition order
+
+column_rank <- colnames(df) %>%
+  lapply(FUN = condition_from_rna_sample_name) %>%
+  unlist() %>%
+  factor(levels = names(cols)) %>%
+  rank(ties.method = "first")
+
+column_order <- c()
+for (i in seq_along(column_rank)) {
+  column_order[column_rank[i]] <- i
+}
+
+df[column_order] -> df
+
+# calculate z-score
+
+df %>% apply(1, scale) %>% t() %>% as.data.frame()  %>% as.matrix() -> scaled_data
+colnames(scaled_data) <- colnames(df)
+```
+
+
+
+
+
+## z-score heatmaps
+
+```{r}
+get_ht <-
+  function(scaled_data,
+           title = " exhaustion markers",
+           cluster_rows = FALSE,
+           row_k_means = 0,
+           row_annotation = NULL,
+           show_row_names = TRUE) {
+    n_markers <- nrow(scaled_data)
+    # do not include infinite values that can't be clustered
+    scaled_data <- scaled_data[!rowSums(!is.finite(scaled_data)),]
+    channel_conditions <- scaled_data %>%
+      colnames() %>% lapply(FUN = condition_from_rna_sample_name) %>%
+      unlist()
+    colnames(scaled_data) <- channel_conditions
+    ba <- HeatmapAnnotation(
+      conditions = channel_conditions,
+      col = list(conditions = EXHAUSTION_COLS),
+      show_annotation_name = FALSE,
+      show_legend = FALSE
+    )
+    scaled_data %>%
+      Heatmap(
+        name = "zscore",
+        cluster_rows = cluster_rows,
+        bottom_annotation = ba,
+        cluster_columns = FALSE,
+        show_row_names = show_row_names,
+        show_column_names = FALSE,
+        rect_gp = gpar(col = "white", lwd = 0.1),
+        show_column_dend = FALSE,
+        show_row_dend = FALSE,
+        row_km = row_k_means,
+        right_annotation = row_annotation,
+        column_title_gp = gpar(fontsize = 6, fontfamily = "Arial"),
+        row_names_gp = gpar(fontsize = 5, fontfamily = "Arial"),
+        column_title = "Bulk RNA-Seq",
+        heatmap_legend_param = list(
+          legend_height = unit(1, "cm"),
+          grid_width = unit(0.2, "cm"),
+          title_gp = gpar(fontsize = 6, fontfamily = "Arial"),
+          labels_gp = gpar(fontsize = 6, fontfamily = "Arial")
+        )
+      ) -> ht
+    return(ht)
+  }
+```
+
+### Chronic activation signature
+
+```{r, fig.width=4,fig.height=4}
+paste0(
+  input_dir, "gsea_enrichment_curve/chronic_activation_score/input/GMDF.gmx"
+) %>% 
+  read_csv(show_col_types = FALSE,skip = 1) %>% 
+  pull("> Genes unregulated in exhausted T-cells from Aviv Regev") -> exhaustion_markers_43
+ht_data <- scaled_data[exhaustion_markers_43,]
+ht <- get_ht(ht_data, cluster_rows = TRUE)
+pdf(file=paste0(input_dir, "heatmaps/exhaustion markers/42_exhaustion_markers.pdf"),width=4,height=6)
+print(ht)
+dev.off()
+print(ht)
+```
+
+### Selected exhaustion markers
+
+```{r, fig.width=2, fig.height=1.9}
+ht_data <- scaled_data[c("BATF","CTLA4","CXCL13","EGR2","ENTPD1","GZMB","HAVCR2","HIF1A","IL7R","IRF4","LAG3","NFATC1","NR4A1","SATB1","TBX21","TCF7","TNFRSF9"),]
+ht <- get_ht(ht_data, cluster_rows = TRUE)
+pdf(
+  file=paste0(input_dir, "heatmaps/exhaustion markers/fig_1d_exhaustion_markers.pdf"),width=2,height=1.9)
+print(ht)
+dev.off()
+print(ht)
+```
+
+### Peroxisome genes
+
+```{r, fig.width=4, fig.height=9.5}
+peroxisome_genes <- c("PEX13","PEX14","PEX16","PEX2","PEX10","PEX12","PEX19","PEX3","PEX1","PEX6","PEX26","PEX5","PEX7","TYSND1","LONP2","PEX11A","PEX11B","PEX11G","FIS1","DNM1L","MFF","GDAP1","TRIM37","NBR1","SQSTM1","PXMP2","PXMP4","SLC25A17","ABCD1","ABCD2","ABCD3","CAT","EPHX2","GSTK1","DAO","DDO","PHYH","HACL1","ALDH3A2","AMACR","SLC27A2","ECI1","DECR1","CPT1A","CPT1B","CPT1C","CPT2","SLC25A20","ACADS","ACADSB","ACADM","ACADL","ACADVL","ACAD9","ACAD10","HADHA","HADHB","ECHS1","HADH","ACAA2","ACOX1","ACOX2","ACOX3","EHHADH","HSD17B4","ACAA1","ACOT4","ACOT8","CROT","ACBD4","ACBD5","FAR1","FAR2","GNPAT","AGPS","BAAT","ECI2")
+print(peroxisome_genes[!peroxisome_genes %in% rownames(scaled_data)])
+fil_peroxisome_genes <- peroxisome_genes[peroxisome_genes %in% rownames(scaled_data)]
+ht_data <- scaled_data[fil_peroxisome_genes,]
+ht <- get_ht(ht_data, " peroxisome markers", cluster_rows = TRUE)
+pdf(file=paste0(input_dir, "heatmaps/exhaustion markers/peroxisome_markers.pdf"),width=4,height=9.5)
+print(ht)
+dev.off()
+print(ht)
+```
+
+### ISR
+
+
+```{r, fig.height=5, fig.width=2}
+isr_genes <- '/Users/henrysanford/Dropbox @RU Dropbox/Vinogradova Laboratory/Vinogradova Laboratory/Henry_data processing/01_data_analysis_folders/03_Exhaustion/exhaustion/exhaustion_notebook/01_wp_analysis/protein_lists/Chandel_2023_GO_combined_ISR_genes_mapped.csv' %>% 
+  read_csv(show_col_types = FALSE) %>% 
+  pull("Manually curated Human gene name") %>% 
+  unlist() %>% unique()
+ht_data <- scaled_data[(isr_genes[isr_genes %in% rownames(scaled_data)]),]
+ht_data <- ht_data[!rowSums(!is.finite(ht_data)),]
+ht_row_order <- get_ht(ht_data, cluster_rows = TRUE) %>% row_order()
+
+# create a condensed version of the heatmap that shows every other name
+
+selected_rows <- seq(1, nrow(ht_data), by = 2)
+original_list <- rownames(ht_data[ht_row_order,])[selected_rows]
+result <- ifelse(rownames(ht_data) %in% original_list, rownames(ht_data), "")
+row_annotation <- rowAnnotation(
+  text = anno_text(result, gp = gpar(fontsize = 5, fontfamily = "Arial"))
+)
+
+ht<- get_ht(
+  ht_data, cluster_rows = TRUE,
+  row_k_means = 0, row_annotation = row_annotation, show_row_names = FALSE
+)
+
+pdf(paste0(input_dir, "heatmaps/exhaustion markers/isr_genes.pdf"),width=2,height=5)
+print(ht)
+dev.off()
+print(ht)
+```
+
+
+
+
+
+
+## Fold change heatmaps
+
+```{r, fig.width = 2.5, fig.height=2}
+
+rna_dir <- input_dir
+
+targets <- c("BATF","CTLA4","CXCL13","EGR2","ENTPD1","GZMB","HAVCR2","IL7R","IRF4","LAG3","NFATC1","NR4A1","TBX21","TCF7","TNFRSF9","BHLHE40")
+fold_change_heatmap <- function (targets){
+rna_dir %>% 
+  paste0("unnormalized_counts.txt") %>% 
+  read_delim(show_col_types = FALSE) %>%
+  filter(Geneid %in% targets) %>%
+  column_to_rownames("Geneid") %>%
+  dplyr::select(-c("Start", "End", "Strand", "Length", "Chr")) -> unnormalized_counts
+
+fold_change = unnormalized_counts / rowMeans(unnormalized_counts[,grepl("D2",colnames(unnormalized_counts))])
+
+
+fold_change %>% 
+  # drop all D2 samples
+  dplyr::select(-c(colnames(fold_change)[grepl("D2", colnames(fold_change))])) %>% 
+  as.matrix() %>%
+  # log2 transform
+  log2()-> heatmap_data
+
+col_fun = colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
+cols <-EXHAUSTION_COLS[conditions]
+column_gp <- gpar(col = "white", lwd = 1)
+
+# parse conditions from sample names
+colnames(heatmap_data) %>%
+lapply(
+  FUN = function(file){case_when(grepl("D4-Ac",file) ~ "D4A",grepl("D8-Ac",file) ~ "D8A",
+          grepl("D4-Chr",file) ~ "D4C",grepl("D8-Chr",file) ~ "D8C")})  %>% 
+  unlist() %>%
+  factor(levels = names(cols)) -> channel_conditions
+
+
+ba <- HeatmapAnnotation(conditions=sort(channel_conditions), 
+                          col=list(conditions=cols),
+                        gp = gpar(col = "white", lwd = 1),
+                          show_annotation_name = FALSE,
+                          show_legend = FALSE)
+
+ba <- HeatmapAnnotation(
+      condition = anno_block(
+        gp = gpar(fill = cols, col = "transparent"),  # Set border color same as fill
+        labels = names(cols),
+        height=unit(3,"mm"),
+        which = "column",
+        labels_gp = gpar(
+          col = "white", 
+          fontsize = 6, 
+          font="Arial")
+      )
+    )
+
+column_gap <- 0.5/2
+text_graphics <- gpar(fontsize=6, fontfamily = "Arial")
+ht_opt$COLUMN_ANNO_PADDING <- unit(column_gap, "mm")
+heatmap_data <- heatmap_data[!rowSums(!is.finite(heatmap_data)),]
+
+# sort heatmap based on order of conditions
+heatmap_data <- heatmap_data[,rank(channel_conditions,ties.method = "first")] 
+set.seed(0000)
+heatmap_data %>%
+  Heatmap(name='log2(FC from D2)', 
+          cluster_rows = TRUE, 
+          top_annotation =  ba,
+          cluster_columns = FALSE, 
+          show_row_names = TRUE,
+          show_column_names = FALSE,
+          rect_gp = gpar(col = "white", lwd = 0),
+          show_column_dend = FALSE,
+          show_row_dend = TRUE,
+          column_title = "Bulk RNA-Seq",
+          heatmap_legend_param = list(
+            title = expression("log"[2]*"(FC from D2)"),
+            legend_height = unit(1.75,"cm"),
+            title_gp = text_graphics,
+            labels_gp = text_graphics,
+            border = "transparent",
+            grid_width = unit(1, "mm")
+          ),
+          column_split = sort(channel_conditions),
+          row_names_side = "left",
+          column_gap = unit(column_gap, "mm"),
+          column_title_gp = text_graphics,
+          row_names_gp = gpar(
+            fontsize = 6,
+            fontface = "italic",
+            fontfamily = "Arial"
+          ),
+          cell_fun =function(j, i, x, y, width, height, fill) {
+        grid.text(sprintf("%.1f", heatmap_data[i, j]), x, y, gp = gpar(fontsize = 3))
+},
+          col=col_fun,) -> heatmap
+return(heatmap)
+}
+set.seed(0000)
+heatmap <- fold_change_heatmap(c("BATF","CTLA4","CXCL13","EGR2","ENTPD1","GZMB","HAVCR2","IL7R","IRF4","LAG3","NFATC1","NR4A1","TBX21","TCF7","TNFRSF9","BHLHE40"))
+pdf(
+  paste0(rna_dir, "heatmaps/fig_1d_exhaustion_markers_with_values.pdf"),
+  width = 2.5,
+  height = 2
+)
+set.seed(0000)
+print(heatmap)
+dev.off()
+print(heatmap)
+```
+### Endoplasmic reticulum stress
+
+```{r, fig.height=16, fig.width = 2.5}
+er_stress_genes <- c("ABCA7","ABL1","AFF4","AGR2","AIFM1","ALOX15","ALOX5","AMFR","ANKS4B","ANKZF1","APAF1","AQP11","ATF3","ATF4","ATF6","ATF6B","ATG10","ATP2A1","ATP2A2","ATP2A3","ATXN3","AUP1","BAG6","BAK1","BAX","BBC3","BCAP31","BCL2","BCL2L1","BCL2L11","BFAR","BHLHA15","BOK","BRSK2","CALR","CALR3","CANX","CASP4","CAV1","CCDC47","CCND1","CDK5RAP3","CEBPB","CERT1","CFTR","CHAC1","CLGN","CLU","COPS5","CREB3","CREB3L1","CREB3L2","CREB3L3","CREBZF","CTH","CXCL8","DAB2IP","DDIT3","DDRGK1","DDX3X","DERL1","DERL2","DERL3","DNAJB12","DNAJB2","DNAJB9","DNAJC10","DNAJC3","ECPAS","EDEM1","EDEM2","EDEM3","EIF2AK2","EIF2AK3","EIF2AK4","EIF2B5","EIF2S1","EIF4G1","ELAVL4","ERLEC1","ERLIN1","ERLIN2","ERMP1","ERN1","ERN2","ERO1A","ERP27","ERP29","ERP44","FAF1","FAF2","FAM8A1","FBXO17","FBXO2","FBXO27","FBXO44","FBXO6","FCGR2B","FGF21","FICD","FLOT1","FOXRED2","GET4","GORASP2","GRINA","GSK3B","HERPUD1","HERPUD2","HM13","HSP90B1","HSPA1A","HSPA5","HYOU1","ITPR1","JKAMP","JUN","KCNJ8","LPCAT3","LRRK2","MAGEA3","MAN1A1","MAN1A2","MAN1B1","MAN1C1","MANF","MAP3K5","MARCHF6","MARCKS","MBTPS1","MBTPS2","MIR199A1","MIR200C","NCCRP1","NCK1","NCK2","NFE2L2","NHLRC1","NIBAN1","NOD1","NOD2","NPLOC4","NR1H2","NR1H3","NRBF2","NUPR1","OPA1","OS9","P4HB","PARK7","PARP16","PARP6","PARP8","PDIA2","PDIA3","PDIA4","PDIA6","PDX1","PIGBOS1","PIK3R1","PIK3R2","PMAIP1","PML","PPP1R15A","PPP1R15B","PPP2CB","PRKN","PSMC6","PTPN1","PTPN2","QRICH1","RACK1","RASGRF1","RASGRF2","RCN3","RHBDD1","RHBDD2","RNF103","RNF121","RNF139","RNF175","RNF183","RNF185","RNF186","RNF5","RNFT1","RNFT2","RPAP2","SCAMP5","SDF2L1","SEC16A","SEC61B","SEL1L","SEL1L2","SELENOK","SELENOS","SERINC3","SERP1","SERP2","SESN2","SGF29","SGTA","SIRT1","SRPX","STC2","STT3B","STUB1","SVIP","SYVN1","TARDBP","TBL2","THBS1","THBS4","TMBIM6","TMCO1","TMED2","TMEM117","TMEM129","TMEM238L","TMEM258","TMEM259","TMEM33","TMEM67","TMTC3","TMTC4","TMUB1","TMUB2","TMX1","TNFRSF10B","TOR1A","TP53","TRAF2","TRIB3","TRIM13","TRIM25","TTC23L","TXNDC12","UBA5","UBAC2","UBE2G2","UBE2J1","UBE2J2","UBE4A","UBE4B","UBQLN1","UBQLN2","UBXN1","UBXN10","UBXN2A","UBXN4","UBXN6","UBXN8","UFC1","UFD1","UFL1","UFM1","UGGT1","UGGT2","UMOD","USP13","USP14","USP19","USP25","VAPB","VCP","WFS1","XBP1","YOD1")
+heatmap <- fold_change_heatmap(
+  targets = er_stress_genes
+)
+pdf(
+  paste0(rna_dir, "heatmaps/endoplasmic reticulum stress.pdf"),
+  width = 2.5,
+  height = 16
+)
+print(heatmap)
+dev.off()
+print(heatmap)
+```
+
+## Combined WP and RNA heatmap
+
+```{r}
+wp_protein_ht <- function(isr_genes){
+
+# read RNA data
+ht_rna_data <- scaled_data[(isr_genes[isr_genes %in% rownames(scaled_data)]),]
+ht_rna_data <- ht_rna_data[!rowSums(!is.finite(ht_rna_data)),]
+ht_rna_data <- ht_rna_data[!duplicated(ht_rna_data),]
+genes <- rownames(ht_rna_data)
+
+# read protein data
+wp_replicate_fn %>% 
+  read_csv() -> wp_data
+wp_data$protein <- make.unique(wp_data$protein)
+wp_data %>%
+  select(-c("description","uniprot","...1")) %>%
+  column_to_rownames("protein") -> wp_data
+wp_data %>%
+  apply(1,scale) %>% 
+  t() %>% 
+  as.data.frame()  %>% 
+  as.matrix() -> wp_scaled_data
+colnames(wp_scaled_data) <- wp_data %>% colnames()
+ht_protein_data <- wp_scaled_data[(isr_genes[isr_genes %in% rownames(wp_scaled_data)]),]
+proteins <- rownames(ht_protein_data)
+
+# add missing values
+for (name in proteins[!(proteins %in% rownames(ht_rna_data))]){
+  r <- rbind(rep(NA, 15))
+  rownames(r) <- name
+  ht_rna_data <- rbind(ht_rna_data, r)
+}
+
+for (name in genes[!(genes %in% proteins)]){
+  r <- rbind(rep(NA, 5))
+  rownames(r) <- name
+  ht_protein_data <- rbind(ht_protein_data, r)
+}
+ht_rna_data %>%
+  as.data.frame() %>%
+  mutate(median = (Sample_D8.Chr.3_IGO_13524_15 + Sample_D8.Chr.2_IGO_13524_14 + Sample_D8.Chr.1_IGO_13524_13)/3) %>%
+  arrange(median) %>%
+  select(-c(median)) %>%
+  as.matrix() -> ht_rna_data
+colnames(ht_rna_data)
+ht <- get_ht(ht_rna_data, "", FALSE)
+
+
+# protein heatmap
+wp_scaled_data <- ht_protein_data
+n_markers <- nrow(wp_scaled_data)
+wp_scaled_data %>% 
+    colnames() -> cls 
+
+  case_when(grepl("D2",cls) ~ "D2",
+            grepl("D4A",cls) ~ "D4A",
+            grepl("D8A",cls) ~ "D8A",
+            grepl("D4C",cls) ~ "D4C",
+            grepl("D8C",cls) ~ "D8C",
+            ) -> channel_conditions
+  
+  colnames(wp_scaled_data) <- channel_conditions
+  
+  cols <-EXHAUSTION_COLS
+  
+  wp_scaled_data <- wp_scaled_data[,order(factor(colnames(wp_scaled_data), levels = names(cols)))]
+  
+  ba <- HeatmapAnnotation(conditions=colnames(wp_scaled_data), 
+                          col=list(conditions=cols))
+    wp_scaled_data <- wp_scaled_data[rownames(ht_rna_data),]
+  wp_scaled_data %>% 
+    Heatmap(name="z-score", 
+            cluster_rows = FALSE, 
+            bottom_annotation = ba,
+            cluster_columns = FALSE, 
+            show_row_names = TRUE,
+            show_column_names = FALSE,
+            rect_gp = gpar(col = "white", lwd = 0.1),
+            show_column_dend = FALSE,
+            show_row_dend = FALSE,
+            row_names_gp = gpar(fontsize =6 ),
+            heatmap_legend_param = list(legend_height = unit(1, "cm"), grid_width = unit(0.2, "cm"), title_gp =gpar(fontsize =6 ), labels_gp = gpar(fontsize =6 )),
+            column_title_gp = gpar(fontsize = 6),
+            column_title = paste0("Whole proteome")) -> ht_protein
+
+
+return(ht + ht_protein)
+}
+```
+
+### T-cell realted genes
+
+```{r}
+rna_dir <- paste0(input_dir, 'heatmaps/charlotte_lists')
+ht_params <- cbind(
+  category = c("Flow panel comparison","Transcription factors","Adenosine-related genes","More T cell genes"),
+  cluster = c(TRUE,TRUE,TRUE,FALSE),
+  height = c(3,3,3.5,3)
+)
+
+paste0(rna_dir, "/charlotte_heatmaps.csv") %>%
+  read_csv(show_col_types = FALSE) -> df
+for (i in 1:nrow(ht_params)){
+  row <- ht_params[i,]
+  df %>% filter(category == row["category"]) %>% pull(protein_name) -> genes
+  genes <- genes[genes %in% rownames(scaled_data)]
+  ht_data <- scaled_data[genes,]
+  ht_data <- ht_data[!rowSums(!is.finite(ht_data)),]
+  ht <- wp_protein_ht(genes)
+  pdf(file = paste0(rna_dir, "/", row["category"], ".pdf"), width=4,height=as.numeric(row["height"]))
+  print(ht)
+  dev.off()
+}
+```
+
+
+Whole proteome data
+
+
+```{r, fig.width=3, fig.height=7.5}
+wp_heatmap <- function(peroxisome_genes){
+wp_replicate_fn <- "/Users/henrysanford/Dropbox @RU Dropbox/Vinogradova Laboratory/Exhaustion manuscript/02_Mass-spectrometry data/01_whole_proteome/02_wp_analysis/20240821_6rep_2MC_two_replicate_var_filter/03_combined_files/20240821_6rep_2MC_two_replicate_var_filter/10_combcond_percctrl_wp_two_passes_two_replicate_variability_filter.csv"
+
+wp_replicate_fn %>% 
+  read_csv() -> wp_data
+wp_data$protein <- make.unique(wp_data$protein)
+wp_data %>%
+  select(-c("description","uniprot","...1")) %>%
+  column_to_rownames("protein") -> wp_data
+wp_data %>%
+  apply(1,scale) %>% 
+  t() %>% 
+  as.data.frame()  %>% 
+  as.matrix() -> wp_scaled_data
+colnames(wp_scaled_data) <- wp_data %>% colnames()
+wp_scaled_data
+fil_peroxisome_genes <- peroxisome_genes[peroxisome_genes %in% rownames(wp_scaled_data)]
+ht_data <- wp_scaled_data[fil_peroxisome_genes,]
+
+wp_scaled_data <- ht_data
+  n_markers <- nrow(wp_scaled_data)
+    wp_scaled_data %>% 
+    colnames() -> cls 
+    print(cls)
+  case_when(grepl("D2",cls) ~ "D2",
+            grepl("D4A",cls) ~ "D4A",
+            grepl("D8A",cls) ~ "D8A",
+            grepl("D4C",cls) ~ "D4C",
+            grepl("D8C",cls) ~ "D8C",
+            ) -> channel_conditions
+  
+  colnames(wp_scaled_data) <- channel_conditions
+  
+  cols <-c("D2" = "#A1A1A1", "D4A" = "#ABA2D6", "D8A" = "#603EA6", "D4C" = "#FBB31B", "D8C" = "#E27753")
+  wp_scaled_data <- wp_scaled_data[,
+                                   order(factor(colnames(wp_scaled_data), levels = names(cols)))
+                                   ]
+  ba <- HeatmapAnnotation(conditions=colnames(wp_scaled_data), 
+                          col=list(conditions=cols))
+  wp_scaled_data %>% 
+    Heatmap(name="zscore", 
+            cluster_rows = TRUE, 
+            bottom_annotation = ba,
+            cluster_columns = FALSE, 
+            show_row_names = TRUE,
+            show_column_names = FALSE,
+            rect_gp = gpar(col = "white", lwd = 0.1),
+            show_column_dend = FALSE,
+            show_row_dend = FALSE,
+            row_names_gp = gpar(fontsize =8 ),
+            column_title = paste0("Whole proteome")) -> ht
+  return(ht)
+
+}
+ht<- wp_heatmap(peroxisome_genes)
+pdf(file=paste0(input_dir, "heatmaps/exhaustion markers/wp_median_peroxisome_markers.pdf"),width=3,height=7.5)
+print(ht)
+dev.off()
+print(ht)
+
+```
+
+
+```{r}
+tuesday_11_list <- c("DNAJA1",
+"HSPA1A",
+"HSF1",
+"SSBP1",
+"HTRA2",
+"SIRT3",
+"FOXO3",
+"AKT1",
+"ESR1",
+"EIF2S1",
+"ATF4",
+"DDIT3",
+"CEBPB",
+"PIN1",
+"SATB2",
+"HDAC1",
+"HDAC2",
+"ATF5",
+"HSPD1",
+"LONP1",
+"DELE1",
+"OMA1",
+"HSPA9",
+"HSPE1",
+"EIF2AK4",
+"EIF2AK3",
+"ATF6",
+"HSPA5",
+"XBP1",
+"ERN1",
+"EIF2AK1",
+"EIF2AK2",
+"TGFBRAP1",
+"PPP1R15A",
+"SRPRB",
+"TLN1",
+"NOP14",
+"NRF1",
+"PHF7",
+"KDM6B",
+"CPEB4",
+"DDIT4",
+"HYOU1",
+"HERPUD2",
+"TAP1",
+"SSR2",
+"SSR3")
+```
+
+### ISR
+
+```{r, fig.height=11, fig.width=4}
+
+
+'/Users/henrysanford/Dropbox @RU Dropbox/Vinogradova Laboratory/Vinogradova Laboratory/Henry_data processing/01_data_analysis_folders/03_Exhaustion/exhaustion/exhaustion_notebook/01_wp_analysis/protein_lists/Chandel_2023_GO_combined_ISR_genes_mapped.csv' %>% 
+  read_csv() %>% 
+  pull("Manually curated Human gene name") %>% 
+  unlist() -> isr_genes
+isr_genes <- tuesday_11_list
+# read RNA data
+ht_rna_data <- scaled_data[(isr_genes[isr_genes %in% rownames(scaled_data)]),]
+ht_rna_data <- ht_rna_data[!rowSums(!is.finite(ht_rna_data)),]
+ht_rna_data <- ht_rna_data[!duplicated(ht_rna_data),]
+genes <- rownames(ht_rna_data)
+
+# read protein data
+wp_replicate_fn %>% 
+  read_csv() -> wp_data
+wp_data$protein <- make.unique(wp_data$protein)
+wp_data %>%
+  select(-c("description","uniprot","...1")) %>%
+  column_to_rownames("protein") -> wp_data
+wp_data %>%
+  apply(1,scale) %>% 
+  t() %>% 
+  as.data.frame()  %>% 
+  as.matrix() -> wp_scaled_data
+colnames(wp_scaled_data) <- wp_data %>% colnames()
+ht_protein_data <- wp_scaled_data[(isr_genes[isr_genes %in% rownames(wp_scaled_data)]),]
+proteins <- rownames(ht_protein_data)
+
+# add missing values
+for (name in proteins[!(proteins %in% rownames(ht_rna_data))]){
+  r <- rbind(rep(NA, 15))
+  print(name)
+  rownames(r) <- name
+  ht_rna_data <- rbind(ht_rna_data, r)
+}
+
+for (name in genes[!(genes %in% proteins)]){
+  r <- rbind(rep(NA, 5))
+  rownames(r) <- name
+  ht_protein_data <- rbind(ht_protein_data, r)
+}
+ht_rna_data %>%
+  as.data.frame() %>%
+  mutate(median = (Sample_D8.Chr.3_IGO_13524_15 + Sample_D8.Chr.2_IGO_13524_14 + Sample_D8.Chr.1_IGO_13524_13)/3) %>%
+  arrange(median) %>%
+  select(-c(median)) %>%
+  as.matrix() -> ht_rna_data
+colnames(ht_rna_data)
+ht <- get_ht(ht_rna_data, "", FALSE)
+
+
+# protein heatmap
+wp_scaled_data <- ht_protein_data
+n_markers <- nrow(wp_scaled_data)
+wp_scaled_data %>% 
+    colnames() -> cls 
+
+  case_when(grepl("D2",cls) ~ "D2",
+            grepl("D4A",cls) ~ "D4A",
+            grepl("D8A",cls) ~ "D8A",
+            grepl("D4C",cls) ~ "D4C",
+            grepl("D8C",cls) ~ "D8C",
+            ) -> channel_conditions
+  
+  colnames(wp_scaled_data) <- channel_conditions
+  
+  cols <-c("D2" = "#A1A1A1", "D4A" = "#ABA2D6", "D8A" = "#603EA6", "D4C" = "#FBB31B", "D8C" = "#E27753")
+  
+  wp_scaled_data <- wp_scaled_data[,order(factor(colnames(wp_scaled_data), levels = names(cols)))]
+  
+  ba <- HeatmapAnnotation(conditions=colnames(wp_scaled_data), 
+                          col=list(conditions=cols))
+    wp_scaled_data <- wp_scaled_data[rownames(ht_rna_data),]
+  wp_scaled_data %>% 
+    Heatmap(name="z-score", 
+            cluster_rows = FALSE, 
+            bottom_annotation = ba,
+            cluster_columns = FALSE, 
+            show_row_names = TRUE,
+            show_column_names = FALSE,
+            rect_gp = gpar(col = "white", lwd = 0.1),
+            show_column_dend = FALSE,
+            show_row_dend = FALSE,
+            row_names_gp = gpar(fontsize =6 ),
+            heatmap_legend_param = list(legend_height = unit(1, "cm"), grid_width = unit(0.2, "cm"), title_gp =gpar(fontsize =6 ), labels_gp = gpar(fontsize =6 )),
+            column_title_gp = gpar(fontsize = 6),
+            column_title = paste0("Whole proteome")) -> ht_protein
+
+
+pdf('/Users/henrysanford/Dropbox @RU Dropbox/Vinogradova Laboratory/Exhaustion manuscript/09_Figures/Figure 5_Reactivity_p38,JNK (Hiro, Katya, Nicole)/Panels/ISR/isr_genes_heatmap.pdf', width = 4, height = 5)
+ht + ht_protein
+dev.off()
+ht + ht_protein
+
+```
+
+
+
+### RNA only
+
+```{r, fig.height=11, fig.width=2.5}
+ht_rna_data %>% as.data.frame() %>% drop_na() %>% as.matrix() -> ht_rna_no_na
+ht <- get_ht(ht_rna_no_na, "", TRUE, 1)
+pdf('/Users/henrysanford/Dropbox @RU Dropbox/Vinogradova Laboratory/Exhaustion manuscript/01_RNA-sequencing/13524/heatmaps/isr_markers/isr_rna_clustered.pdf', width = 2.5, height = 11)
+ht
+dev.off()
+ht
+
+```
+
+## PIP5K1B bargraph
+
+```{r, fig.height=2, fig.width=4.5}
+# the ggbreak library isn't compatible with facet wrapping
+# so we have to make the multi-plot panel in an awkward way
+
+rna_expression_plot <- function(gn, y_label) {
+  '/Users/henrysanford/Dropbox @RU Dropbox/Vinogradova Laboratory/Exhaustion manuscript/01_RNA-sequencing/13524/unnormalized_counts.txt' %>% read_delim() %>% 
+    select(-c("Chr","Start","End","Strand","Length")) %>%
+    as.data.frame() %>%
+    mutate(gene = Geneid) %>%
+    mutate(
+      median_d2 = (`sorted_bam_files/Sample_D2-1_IGO_13524_1_sorted.bam` + 
+                     `sorted_bam_files/Sample_D2-2_IGO_13524_2_sorted.bam` + 
+                     `sorted_bam_files/Sample_D2-3_IGO_13524_3_sorted.bam`)/3) -> df
+  
+  pivot_cols <- colnames(df)[grepl("Sample", colnames(df))]
+  df %>% pivot_longer(cols = pivot_cols, names_to = "sample_name", values_to = "normalized_counts" ) %>%
+    mutate(percent_control = (normalized_counts / median_d2) * 100) %>%
+    mutate(condition = case_when(grepl("D2",sample_name) ~ "D2",
+              grepl("D4.Ac",sample_name) ~ "D4A",
+              grepl("D8.Ac",sample_name) ~ "D8A",
+              grepl("D4.Chr",sample_name) ~ "D4C",
+              grepl("D8.Chr",sample_name) ~ "D8C"
+              )) %>%
+    filter(
+      gene == gn,
+      condition != "D2") -> df
+  
+    df %>%
+      group_by(condition, gene) %>%
+      summarise( 
+        n=n(),
+        mean=mean(percent_control),
+        sd=sd(percent_control),
+        fun = mean
+      ) %>%
+      mutate(se=sd/sqrt(n))  %>%
+      mutate(ic=se * qt((1-0.05)/2 + .5, n-1)) -> stat_df
+    
+  df$condition <- factor(df$condition, levels = names(cols))
+    
+  df %>%
+    ggplot(aes(x = condition, y = percent_control, fill = condition)) + 
+    geom_bar(stat = "summary", 
+             fun = "mean",
+             show.legend = FALSE,
+             width = 0.75,
+             alpha = 0.7) +
+      geom_jitter(shape = 21, 
+                width = 0.1,
+                height = 0,
+                color = "black",
+                size = POINT_SIZE - 1,
+                stroke = POINT_STROKE,
+                show.legend = FALSE) + 
+      geom_errorbar(data = stat_df, 
+                  mapping = aes(
+                    x = condition, 
+                    ymin = mean - se,
+                    ymax = mean + se
+                  ),
+                  inherit.aes = FALSE,
+                  width = 0.4,
+                  size = LINE_WIDTH) +
+      facet_wrap(~gene, scales = "free") +
+      ggbreak::scale_y_break(breaks = c(200, 550), 
+                           scales = 1,
+                           expand = expansion(mult = c(0, .2))) +
+      my_theme() + 
+      geom_hline(yintercept = 100, 
+                 size = LINE_WIDTH, 
+                 linetype="dashed"
+                 ) + 
+    scale_y_continuous(
+      expand = expansion(mult = c(0, .3))
+    )  + 
+    theme(
+      strip.background = element_blank(),
+      panel.spacing = unit(2,"mm"),
+      strip.text = element_text(size = 8),
+      # reverse annoying ggbreak changes
+      axis.line.y.right = element_blank(),
+      axis.ticks.y.right = element_blank(),
+      axis.text.y.right = element_blank(),
+      axis.title.x = element_text(margin = margin(t = 0), color = "black", family = FONT_FAMILY, size = FONT_SIZE, hjust = 0.5),
+      axis.title.y = element_text(margin = margin(r = 0), color = "black", family = FONT_FAMILY, size = FONT_SIZE, vjust = 0.5),
+      panel.border =element_blank(),
+      axis.line.x = AXIS_LINE,
+      axis.line.y = AXIS_LINE
+    ) + 
+    scale_fill_manual(values = cols) +
+    ylim(0,8000) +
+    labs(x = "", y = y_label) -> plt
+  print(plt)
+  
+  return(plt)
+}
+
+a = rna_expression_plot("PIP5K1A", "RNA expression (%D2)")
+b = rna_expression_plot("PIP5K1B", "")
+c = rna_expression_plot("PIP5K1C", "")
+
+ggpubr::ggarrange(
+   print(a), print(b), print(c),
+   nrow = 1, align = "h"
+)
+save_plot('/Users/henrysanford/Dropbox @RU Dropbox/Vinogradova Laboratory/Exhaustion manuscript/01_RNA-sequencing/13524/barplots/pip5k_family', width = 4.5, height = 2)
+```
+
+
+## GSEA
+
+### setup
+
+```{r}
+library(tidyverse)
+source("../08_figure_creation/figure_parameters.R")
+rna_dir <- "/Users/henrysanford/Dropbox @RU Dropbox/Vinogradova Laboratory/Exhaustion manuscript/01_RNA-sequencing/13524/"
+```
+
+
+### data filtering
+
+```{r}
+paste0(rna_dir, "unnormalized_counts.txt")  %>%
+ read_delim(show_col_types = FALSE) %>%
+ select(-c("Chr", "Start", "End", "Strand", "Length")) %>%
+  filter(1000 < rowSums(select(., -Geneid))) %>%
+ write_delim(paste0(rna_dir, "gsea_enrichment_curve/unnormalized_counts_filtered.txt"), delim="\t")
+```
+
+
+### plotting
+
+```{r}
+
+collect_metadata <- function(gsea_results_dir, conditions){
+  l <- list.dirs(gsea_results_dir, recursive = FALSE)
+  metadata <- list()
+  # Collect filepaths by searching folder names. 
+  # Each GSEA results folder should start with the condition
+  for (condition in conditions){
+    metadata[condition] <- l[grepl(condition, l)][1]
+  } 
+  return(metadata)
+}
+
+get_edb_obj <- function(path, gene.set, class.name, metric.range,
+                       enrichment.score.range){
+  ## Load .rnk data
+  path.rnk <- list.files(path = file.path(path, "edb"),
+                         pattern = ".rnk$", full.names = TRUE)
+  gsea.rnk <- read.delim(file = path.rnk, header = FALSE)
+  colnames(gsea.rnk) <- c("hgnc.symbol", "metric")
+  if (missing(metric.range)) {
+    metric.range <- c(min(gsea.rnk$metric), max(gsea.rnk$metric))
+  }  
+  
+  ## Load .edb data
+  path.edb <- list.files(path = file.path(path, "edb"),
+                         pattern = ".edb$", full.names = TRUE)
+  gsea.edb <- read.delim(file = path.edb,
+                         header = FALSE, stringsAsFactors = FALSE)
+  gsea.edb <- unlist(gsea.edb)
+  gsea.metric <- gsea.edb[grep("METRIC=", gsea.edb)]
+  gsea.metric <- unlist(strsplit(gsea.metric, " "))
+  gsea.metric <- gsea.metric[grep("METRIC=", gsea.metric)]
+  gsea.metric <- gsub("METRIC=", "", gsea.metric)
+  gsea.edb <- gsea.edb[grep("<DTG", gsea.edb)]
+  
+  # Select the right gene set
+  if (length(gsea.edb) == 0) {
+    stop(paste("The gene set name was not found, please provide",
+               "a correct name"))
+  }
+  if (length(grep(paste0(gsub(".\\$(.*$)", "\\1", gene.set), " "), gsea.edb)) > 1) {
+    warning(paste("More than 1 gene set matched the gene.set",
+                  "argument; the first match is plotted"))
+  }
+  gsea.edb <- gsea.edb[grep(paste0(gsub(".\\$(.*$)", "\\1", gene.set), " "), gsea.edb)[1]]
+  
+  # Get template name
+  gsea.edb <- gsub(".*TEMPLATE=(.*)", "\\1", gsea.edb)
+  gsea.edb <- unlist(strsplit(gsea.edb, " "))
+  gsea.template <- gsea.edb[1]
+  
+  # Get gene set name
+  gsea.gene.set <- gsea.edb[2]
+  gsea.gene.set <- gsub("GENESET=gene_sets.gmt#", "", gsea.gene.set)
+  
+  # Get enrichment score
+  gsea.enrichment.score <- gsea.edb[3]
+  gsea.enrichment.score <- gsub("ES=", "", gsea.enrichment.score)
+  
+  # Get gene set name
+  gsea.normalized.enrichment.score <- gsea.edb[4]
+  gsea.normalized.enrichment.score <- gsub("NES=", "",
+                                           gsea.normalized.enrichment.score)
+  
+  # Get nominal p-value
+  gsea.p.value <- gsea.edb[5]
+  gsea.p.value <- gsub("NP=", "", gsea.p.value)
+  gsea.p.value <- as.numeric(gsea.p.value)
+  
+  # Get FDR
+  gsea.fdr <- gsea.edb[6]
+  gsea.fdr <- gsub("FDR=", "", gsea.fdr)
+  gsea.fdr <- as.numeric(gsea.fdr)
+  
+  # Get hit indices
+  gsea.edb <- gsea.edb[grep("HIT_INDICES=", gsea.edb):length(gsea.edb)]
+  gsea.hit.indices <- gsea.edb[seq_len(grep("ES_PROFILE=", gsea.edb) - 1)]
+  gsea.hit.indices <- gsub("HIT_INDICES=", "", gsea.hit.indices)
+  gsea.hit.indices <- as.integer(gsea.hit.indices)
+  
+  # Get ES profile
+  gsea.edb <- gsea.edb[grep("ES_PROFILE=", gsea.edb):length(gsea.edb)]
+  gsea.es.profile <- gsea.edb[seq_len(grep("RANK_AT_ES=", gsea.edb) - 1)]
+  gsea.es.profile <- gsub("ES_PROFILE=", "", gsea.es.profile)
+  gsea.es.profile <- as.numeric(gsea.es.profile)
+  edb <- list("hit_indices" = gsea.hit.indices,"es_profile" = gsea.es.profile) %>% as.data.frame()
+  edb$nes <- gsea.normalized.enrichment.score
+  edb$p_value <- gsea.p.value
+  return(edb)
+}
+
+get_nes <- function(df, c){
+  nes <- df %>% filter(condition == c) %>% pull("nes")
+  return(nes[1])
+}
+
+get_p_val <- function(df, c){
+  pval <- df %>% filter(condition == c) %>% pull("p_value")
+  pval <- as.numeric(pval[1])
+  if (pval < 0.001){
+    return("<0.001")
+  } else{
+    return (
+      paste0("=", as.character(round(pval, digits = 3)))
+    )
+  }
+}
+
+
+plot_gsea <- function(
+  gsea_results_dir,
+  conditions,
+  gene_list_name){
+  metadata <- collect_metadata(gsea_results_dir, conditions) 
+  path.rnk <- list.files(path = file.path(metadata[3], "edb"),
+                       pattern = ".rnk$", full.names = TRUE)
+  gsea.rnk <- read.delim(file = path.rnk, header = FALSE)
+  
+  df <- NULL
+  for (name in names(metadata)){
+    c_edb <- get_edb_obj(
+      path = metadata[name],gene.set=gene_list_name,)
+    c_edb$condition <- name
+    df = rbind(df, c_edb)
+  }
+  # define y position of hit indices for each condition
+df %>% 
+  mutate(condition = factor(df$condition, conditions),
+         y_pos = as.numeric(condition) - 1) -> df
+
+# define plot dimensions
+es_min <- min(df$es_profile) * 1.2
+tick_height = 0.1
+x_max <- nrow(gsea.rnk)
+y_min <- es_min - length(conditions) * tick_height
+y_max <- max(df$es_profile)  * 1.2
+
+ggplot() + 
+  # background lines
+  geom_hline(yintercept = c(0),
+               size = LINE_WIDTH,
+             color="grey") +
+  # curves
+  geom_path(data = df, 
+            mapping = aes(x=hit_indices, 
+                          y = es_profile, 
+                          color=condition),
+            show.legend = FALSE,
+            alpha = 0.7,
+            size = 0.25 * 1.5
+            ) +
+  # hit index tick marks
+  geom_segment(data = df,
+               size = 0.25,
+               mapping = aes(x= hit_indices, 
+                             y = es_min - (tick_height * y_pos), 
+                             yend = es_min - (tick_height * (y_pos + 1)), 
+                             color=condition), 
+               show.legend = FALSE) +
+  # line seperating tick marks
+  geom_hline(data = df,
+             mapping = aes(yintercept = es_min - (tick_height * y_pos)), 
+             size = LINE_WIDTH,
+             color = "black") + 
+  scale_color_manual(values = cols) + 
+  xlim(c(0,x_max)) +
+  scale_x_continuous(expand = c(0,0), breaks = c(0, 5000, 10000, 15000)) + 
+  scale_y_continuous(expand = c(0,0), limits = c(y_min, y_max), breaks = c(0, 0.5, 1)) +
+  my_theme() + 
+  labs(x = "rank in gene list",
+       y = "enrichment score") + 
+  theme(
+    axis.title.y = element_text( hjust = 0.85)
+    )-> plt
+  
+  for (condition in conditions){
+    # calculate y position of text
+    text_height <- es_min - tick_height * (as.numeric(factor(condition, levels = conditions)) - 0.5)
+   plt <- plt +
+     # add normalized enrichment score label
+    annotate(
+      "text", 
+      x = x_max, 
+      y = text_height, 
+      label = paste0(
+        "NES=", sprintf("%.2f", round(as.numeric(get_nes(df, condition)), 3)),
+        ",p",get_p_val(df, condition)),
+      color = cols[condition],
+      size = 6, 
+      hjust = -0.1,
+      size.unit = "pt") 
+   # add condition label enrichment score label
+   plt <- plt +
+       annotate(
+      "text", 
+      x = 0, 
+      y = text_height, 
+      label = condition,
+      color = cols[condition],
+      size = 6, 
+      hjust = 1.05,
+      size.unit = "pt") 
+  }
+  plt + 
+    coord_cartesian(clip = "off") +
+    theme(aspect.ratio = 1.5) + 
+    ggtitle(gene_list_name) -> plt
+  print(plt)
+  save_plot(
+    paste0(
+      gsea_results_dir,
+      "/",
+      gene_list_name
+    ),
+    width = 3,
+    height = 2
+  )
+}
+
+```
+
+
+```{r, fig.width=3, fig.height=2}
+lists_to_plot <- c(
+"ATF3_Q6_BINDING_MOTIF",
+"ATF4_Q2_BINDING_MOTIFS",
+"ATF6_01_BINDING_MOTIF")
+for (gene_list in lists_to_plot){
+  print(gene_list)
+  # RNA results
+ plot_gsea(
+  paste0(rna_dir, 'gsea_enrichment_curve/t_cell_dysfunction'),
+  conditions,
+  gene_list
+  ) 
+  # protein results
+  plot_gsea(
+     '/Users/henrysanford/Dropbox @RU Dropbox/Vinogradova Laboratory/Exhaustion manuscript/02_Mass-spectrometry data/01_whole_proteome/02_wp_analysis/20240821_6rep_2MC_two_replicate_var_filter/04_results/gsea/t_cell_dysfunction',
+     conditions,
+     gene_list
+  )
+}
+
+```
+
+
+```{r, fig.width=3, fig.height=2}
+# chronic activation score
+
+gsea_results_dir <- paste0(rna_dir, "Santosh GSEA/")
+gene_list_name <- "CHRONIC_ACTIVATION_SCORE"
+
+plot_gsea(
+  gsea_results_dir,
+  conditions,
+  gene_list_name
+)
+```
+
+
+### PIP5K1 KO
+
+```{r}
+library(tidyverse)
+c(
+  "D8A-Ctrl" = "#603EA6",
+  "D8A-1A" = "#5CBED7",
+  "D8A-1B" = "#4869B2",
+  "D8A-1C" = "#237D41",
+  "D8C-Ctrl" = "#E27753",
+  "D8C-1A" = "#EC2427",
+  "D8C-1B" = "#742D16",
+  "D8C-1C" = "#FFCC31",
+  
+)
+
+add_back_fills <- c(
+  "D2" = "darkgrey",
+  "D2-ATP" = "grey99",
+  "spacer1" = "transparent",
+  "D8A" = "#603EA6",
+  "D8A-ATP" = "#D13B95",
+  "spacer2" = "transparent",
+  "D8C" = "#E27753",
+  "D8C-ATP" = "#EF3D3B"
+)
+```
+
+
+
+
+
+
